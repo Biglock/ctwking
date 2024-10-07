@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Press To Win</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 20px;
+            transition: background-color 0.3s ease;
+        }
+
+        #game-container {
+            max-width: 600px;
+            margin: auto;
+            padding: 20px;
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+
+        #game-status {
+            margin-bottom: 20px;
+        }
+
+        #click-me {
+            padding: 20px;
+            font-size: 20px;
+            cursor: pointer;
+        }
+
+        button {
+            padding: 10px;
+            margin: 10px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        button:disabled {
+            background-color: #ccc;
+        }
+
+        input {
+            padding: 10px;
+            margin: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            width: 200px;
+        }
+
+        #click-count {
+            font-size: 20px;
+            margin-top: 20px;
+        }
+
+        #status {
+            font-size: 18px;
+            color: #333;
+        }
+
+        #countdown {
+            font-size: 24px;
+            font-weight: bold;
+            color: red;
+            margin-top: 20px;
+        }
+
+        #winner {
+            font-size: 24px;
+            color: green;
+            font-weight: bold;
+            margin-top: 20px;
+        }
+
+        #power-up, #speed-boost {
+            display: none;
+            background-color: gold;
+            padding: 10px;
+            font-size: 16px;
+            cursor: pointer;
+            border-radius: 5px;
+            margin: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <h1>Race to Win!</h1>
+        <div id="game-status">
+            <p id="status">Connect to your friend to start the race!</p>
+        </div>
+        <div id="connection">
+            <input type="text" id="username" placeholder="Enter your username">
+            <button id="create-peer">Create Peer</button>
+            <input type="text" id="friend-id" placeholder="Enter friend ID">
+            <button id="connect">Connect</button>
+        </div>
+        <div id="game">
+            <p id="click-count">Clicks: 0</p>
+            <button id="click-me" disabled>Click Me!</button>
+            <button id="start-game" disabled>Start Game</button>
+        </div>
+        <p id="countdown"></p>
+        <p id="winner"></p>
+        <button id="power-up">Power-Up: Double Clicks!</button>
+        <button id="speed-boost">Speed Boost: Triple Clicks!</button>
+
+        <!-- Confetti script -->
+        <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.4.0/dist/confetti.browser.min.js"></script>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/peerjs@1.4.6/dist/peerjs.min.js"></script>
+    <script>
+        let peer;
+        let conn;
+        let clicks = 0;
+        let gameStarted = false;
+        let gameDuration = 10000; // 10 seconds
+        let countdownDuration = 3; // 3 seconds countdown
+        let doubleClickMode = false;
+        let speedBoostMode = false;
+        let clickSound = new Audio('https://www.soundjay.com/button/beep-07.wav');
+        let powerUpTimeout;
+        let speedBoostTimeout;
+        let username;
+        let opponentUsername;
+
+        const status = document.getElementById('status');
+        const clickCount = document.getElementById('click-count');
+        const clickButton = document.getElementById('click-me');
+        const startGameButton = document.getElementById('start-game');
+        const countdown = document.getElementById('countdown');
+        const winnerAnnouncement = document.getElementById('winner');
+        const powerUpButton = document.getElementById('power-up');
+        const speedBoostButton = document.getElementById('speed-boost');
+
+        document.getElementById('create-peer').addEventListener('click', () => {
+            username = document.getElementById('username').value;
+            if (!username) {
+                alert('Please enter a username');
+                return;
+            }
+
+            peer = new Peer();
+            peer.on('open', (id) => {
+                status.textContent = `Your Peer ID: ${id}. Share it with your friend.`;
+            });
+
+            peer.on('connection', (connection) => {
+                conn = connection;
+                conn.on('data', handleData);
+                status.textContent = 'Connected to a friend! Ready to start the game!';
+                startGameButton.disabled = false;
+
+                // Send username to the connected player
+                conn.send({ type: 'username', username: username });
+            });
+        });
+
+        document.getElementById('connect').addEventListener('click', () => {
+            username = document.getElementById('username').value;
+            if (!username) {
+                alert('Please enter a username');
+                return;
+            }
+
+            const friendId = document.getElementById('friend-id').value;
+            conn = peer.connect(friendId);
+            conn.on('open', () => {
+                conn.on('data', handleData);
+                status.textContent = 'Connected to a friend! Ready to start the game!';
+                startGameButton.disabled = false;
+
+                // Send username to the connected player
+                conn.send({ type: 'username', username: username });
+            });
+        });
+
+        startGameButton.addEventListener('click', () => {
+            if (conn) {
+                conn.send({ type: 'start-game' });
+                startCountdown();
+            }
+        });
+
+        clickButton.addEventListener('click', () => {
+            if (!gameStarted) return;
+
+            let clickValue = 1;
+            if (doubleClickMode) {
+                clickValue *= 2;
+            }
+            if (speedBoostMode) {
+                clickValue *= 3;
+            }
+
+            clicks += clickValue;
+            clickCount.textContent = `Clicks: ${clicks}`;
+            clickSound.play();
+        });
+
+        powerUpButton.addEventListener('click', () => {
+            doubleClickMode = true;
+            powerUpButton.style.display = 'none';
+            status.textContent = 'Double Click Mode Activated!';
+
+            setTimeout(() => {
+                doubleClickMode = false;
+                status.textContent = 'Normal Mode Restored!';
+            }, 5000); // Power-up lasts for 5 seconds
+        });
+
+        speedBoostButton.addEventListener('click', () => {
+            speedBoostMode = true;
+            speedBoostButton.style.display = 'none';
+            status.textContent = 'Speed Boost Activated!';
+
+            setTimeout(() => {
+                speedBoostMode = false;
+                status.textContent = 'Normal Mode Restored!';
+            }, 5000); // Speed boost lasts for 5 seconds
+        });
+
+        function startCountdown() {
+            countdown.textContent = countdownDuration;
+            let countdownInterval = setInterval(() => {
+                countdownDuration--;
+                countdown.textContent = countdownDuration;
+                if (countdownDuration === 0) {
+                    clearInterval(countdownInterval);
+                    countdown.textContent = '';
+                    startGame();
+                }
+            }, 1000);
+        }
+
+        function startGame() {
+            clicks = 0;
+            clickCount.textContent = 'Clicks: 0';
+            gameStarted = true;
+            clickButton.disabled = false;
+            startGameButton.disabled = true;
+            status.textContent = 'Game started! Click as fast as you can!';
+            randomPowerUp();
+            randomSpeedBoost();
+
+            setTimeout(() => {
+                gameStarted = false;
+                clickButton.disabled = true;
+                clearTimeout(powerUpTimeout);
+                clearTimeout(speedBoostTimeout);
+                status.textContent = `Time's up! You clicked ${clicks} times.`;
+
+                if (conn) {
+                    conn.send({ type: 'game-over', clicks: clicks });
+                }
+
+                announceWinner(clicks);
+            }, gameDuration);
+        }
+
+        function randomPowerUp() {
+            powerUpTimeout = setTimeout(() => {
+                powerUpButton.style.display = 'block';
+                status.textContent = 'Power-Up Available! Click to Activate!';
+                setTimeout(() => powerUpButton.style.display = 'none', 5000); // Power-up appears for 5 seconds
+            }, Math.random() * 5000 + 2000); // Random timing between 2 and 7 seconds
+        }
+
+        function randomSpeedBoost() {
+            speedBoostTimeout = setTimeout(() => {
+                speedBoostButton.style.display = 'block';
+                status.textContent = 'Speed Boost Available! Click to Activate!';
+                setTimeout(() => speedBoostButton.style.display = 'none', 5000); // Speed boost appears for 5 seconds
+            }, Math.random() * 5000 + 2000); // Random timing between 2 and 7 seconds
+        }
+
+        function announceWinner(clicks) {
+            winnerAnnouncement.textContent = `${username} clicked ${clicks} times!`;
+            confetti();
+        }
+
+        function handleData(data) {
+            if (data.type === 'start-game') {
+                startCountdown();
+            } else if (data.type === 'game-over') {
+                status.textContent += ` Your friend clicked ${data.clicks} times.`;
+                announceWinner(data.clicks);
+            } else if (data.type === 'username') {
+                opponentUsername = data.username; // Save the opponent's username
+                status.textContent += ` Playing against: ${opponentUsername}`;
+            }
+        }
+    </script>
+</body>
+</html>
