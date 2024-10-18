@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fast Quiz Game</title>
+    <style>
+        /* Enhanced CSS for a modern look */
+        body {
+            font-family: 'Roboto', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background: linear-gradient(135deg, #89f7fe, #66a6ff);
+        }
+
+        #game-container {
+            background-color: #ffffff;
+            padding: 30px;
+            border-radius: 16px;
+            box-shadow: 0px 12px 24px rgba(0, 0, 0, 0.1);
+            width: 350px;
+            text-align: center;
+            transition: transform 0.3s ease-in-out;
+        }
+
+        h1 {
+            font-size: 28px;
+            color: #333;
+            margin-bottom: 20px;
+            font-weight: 700;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px;
+            margin: 10px 0;
+            border-radius: 8px;
+            border: 1px solid #ccc;
+            transition: all 0.2s ease;
+            font-size: 16px;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #66a6ff;
+            box-shadow: 0px 0px 8px rgba(102, 166, 255, 0.5);
+        }
+
+        button {
+            width: 100%;
+            padding: 12px;
+            background-color: #66a6ff;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s ease;
+        }
+
+        button:hover {
+            background-color: #4e8ddf;
+        }
+
+        #quiz-container {
+            display: none;
+            margin-top: 20px;
+        }
+
+        #quiz-photo {
+            width: 100%;
+            border-radius: 10px;
+            margin-top: 10px;
+            box-shadow: 0px 6px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        #feedback {
+            font-weight: bold;
+            color: #28a745;
+            margin-top: 10px;
+        }
+
+        #scores-container {
+            display: none;
+            margin-top: 20px;
+        }
+
+        #scores-container h3 {
+            font-size: 20px;
+            margin-bottom: 10px;
+        }
+
+        #score-list {
+            padding: 0;
+            list-style-type: none;
+        }
+
+        #score-list li {
+            font-size: 16px;
+            margin: 5px 0;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <h1>Fast Quiz Game</h1>
+
+        <div id="player-info">
+            <input type="text" id="player-name" placeholder="Enter your name" />
+            <input type="text" id="peer-code" placeholder="Enter peer code" readonly />
+            <button id="generate-code-btn">Generate Peer Code</button>
+            <button id="connect-btn">Connect</button>
+        </div>
+
+        <div id="quiz-container">
+            <div id="photo-container">
+                <img id="quiz-photo" src="" alt="Quiz Image" />
+                <p id="quiz-question"></p>
+            </div>
+            <input type="text" id="answer-input" placeholder="Type your answer" autocomplete="off" />
+            <p id="feedback"></p>
+            <button id="pass-btn">Pass</button> <!-- Added Pass button -->
+        </div>
+
+        <div id="scores-container">
+            <h3>Scores</h3>
+            <ul id="score-list"></ul>
+        </div>
+    </div>
+
+    <script>
+        // Variables
+        let playerName = '';
+        let peerCode = '';
+        let players = {};
+        let correctAnswer = '';
+
+        // Mock question and photo data
+        const questions = [
+            { question: "What is this?", photo: "ele.jpeg", answer: "elephant" },
+            { question: "What is this?", photo: "apple.jpg", answer: "apple" },
+            { question: "What is this?", photo: "weel.jpg", answer: "wheelchair" },
+            { question: "What is this?", photo: "mcodnalds.png", answer: "mcdonalds" },
+            { question: "What is this?", photo: "dollar.jpeg", answer: "dollar" },
+            { question: "What is this?", photo: "wiki.jpg", answer: "wikipedia" },
+        ];
+        let currentQuestionIndex = 0;
+
+        // Audio for right/wrong sounds
+        const correctSound = new Audio('right.wav');
+        const wrongSound = new Audio('wrong.mp3');
+
+        // DOM Elements
+        const playerNameInput = document.getElementById('player-name');
+        const peerCodeInput = document.getElementById('peer-code');
+        const generateCodeBtn = document.getElementById('generate-code-btn');
+        const connectBtn = document.getElementById('connect-btn');
+        const quizContainer = document.getElementById('quiz-container');
+        const answerInput = document.getElementById('answer-input');
+        const feedback = document.getElementById('feedback');
+        const passBtn = document.getElementById('pass-btn'); // Added Pass button element
+        const scoreList = document.getElementById('score-list');
+        const quizQuestion = document.getElementById('quiz-question');
+        const quizPhoto = document.getElementById('quiz-photo');
+        const scoresContainer = document.getElementById('scores-container');
+
+        // Generate Peer Code
+        generateCodeBtn.addEventListener('click', () => {
+            peerCode = Math.random().toString(36).substring(2, 8);
+            peerCodeInput.value = peerCode;
+        });
+
+        // Connect button handler
+        connectBtn.addEventListener('click', () => {
+            playerName = playerNameInput.value;
+            if (peerCode) {
+                startConnection();  // Proceed only if peer code exists
+            } else {
+                alert("Please generate a peer code first.");
+            }
+        });
+
+        // Mock Connection Setup
+        function startConnection() {
+            document.getElementById('player-info').style.display = 'none';
+            quizContainer.style.display = 'block';
+            scoresContainer.style.display = 'block';
+            loadNextQuestion();
+        }
+
+        // Load the next question or photo
+        function loadNextQuestion() {
+            const question = questions[currentQuestionIndex];
+            quizQuestion.innerText = question.question;
+            quizPhoto.src = question.photo;
+            correctAnswer = question.answer.toLowerCase();
+            answerInput.value = '';
+            feedback.innerText = '';
+        }
+
+        // Answer input handler
+        answerInput.addEventListener('input', () => {
+            const answer = answerInput.value.toLowerCase();
+            if (answer === correctAnswer) {
+                feedback.innerText = "Correct!";
+                correctSound.play();  // Play correct answer sound
+                updateScores(playerName);
+                currentQuestionIndex = (currentQuestionIndex + 1) % questions.length;
+                setTimeout(loadNextQuestion, 1000);
+            } else if (answer !== "" && !correctAnswer.startsWith(answer)) {
+                feedback.innerText = "Incorrect!";
+                wrongSound.play();  // Play wrong answer sound
+            }
+        });
+
+        // Pass button handler
+        passBtn.addEventListener('click', () => {
+            feedback.innerText = "Passed! No points awarded.";
+            currentQuestionIndex = (currentQuestionIndex + 1) % questions.length;
+            setTimeout(loadNextQuestion, 1000);
+        });
+
+        // Update scores
+        function updateScores(player) {
+            if (!players[player]) {
+                players[player] = 1;
+            } else {
+                players[player]++;
+            }
+            updateScoreList();
+        }
+
+        // Update score list UI
+        function updateScoreList() {
+            scoreList.innerHTML = '';
+            for (const player in players) {
+                const li = document.createElement('li');
+                li.innerText = `${player}: ${players[player]} points`;
+                scoreList.appendChild(li);
+            }
+        }
+    </script>
+</body>
+</html>
